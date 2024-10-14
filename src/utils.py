@@ -77,15 +77,13 @@ def process_3D_landmarks(path) -> np.ndarray:
     # crop landmarks to remove zero-padding
     landmarks = landmarks[:, :time_idx]
 
-
+    # helpful print statements
     # print(f'there were {len(unsuccessful_frames)} unsuccessful frames occuring at the following frames: \n{list(unsuccessful_frames.keys())}')
-    print(f'there were {len(unsuccessful_frames)} unsuccessful frames ({round(100 * len(unsuccessful_frames) / landmarks.shape[1], 3)}%) when processing the facial landmarks')
-    print(f'landmarks was cvted from {max_i} to {time_idx} frames')
+    # print(f'There were {len(unsuccessful_frames)} unsuccessful frames ({round(100 * len(unsuccessful_frames) / landmarks.shape[1], 3)}%) when processing the facial landmarks')
+    # print(f'Landmarks was cvted from {max_i} to {time_idx} frames')
     end_time = int(time.time())
-    print(f'in utils, processed landmark data in {(end_time - start_time) // 60}m {round((time.time() - start_time) % 60, 2)}s')
+    # print(f'finished processing landmark data for a single participant in {(end_time - start_time) // 60}m {round((time.time() - start_time) % 60, 2)}s')
     
-    print(f'landmarks shape: {landmarks.shape}')
-    print(f'landmarks second dimension: {landmarks.shape[1]}')
     return landmarks
 
 
