@@ -34,7 +34,7 @@ def extract_3D_landmarks(path) -> np.ndarray:
     return landmarks
 
 
-def head_pose_entire_file(path) -> np.ndarray:
+def process_headpose_data(path) -> np.ndarray:
     """
     Reads in head pose data line by line, applying scaling normalization (diving by 100 for Tx Ty Tz) and
     time series normalzation (going from 30 Hz (fps) to 5 Hz)
@@ -77,4 +77,4 @@ def head_pose_entire_file(path) -> np.ndarray:
     #     print(head_pose[:,:,i])
     print(f'head_pose was cvted from {max_i} to {frame_idx} frames')
 
-head_pose_entire_file( "../data/300_P/300_CLNF_pose.txt")
+process_headpose_data( "../data/300_P/300_CLNF_pose.txt")
