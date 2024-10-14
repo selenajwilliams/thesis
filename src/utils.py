@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 # read in the facial landmarks for the first frame
 # returns a np array of 68 3D facial landmarks
-def extract_landmarks(path) -> np.ndarray:
+def extract_3D_landmarks(path) -> np.ndarray:
     raw_data = [] # represens a single line of the file
     landmarks = np.zeros((68, 3))
 
@@ -22,7 +22,7 @@ def extract_landmarks(path) -> np.ndarray:
         raw_data = raw_data[4:]
 
         if len(raw_data) / 3 != 68:
-            raise Exception(f"Data formatting error: {num_landmarks} landmarks found; expected 68. Check data to see if it's malformatted")
+            raise Exception(f"Data formatting error: {len(raw_data)} landmarks found; expected 68. Check data to see if it's malformatted")
 
         # process raw landmark CSV data into numpy array
         for i in range(0, int(len(raw_data)/3)):
@@ -32,3 +32,32 @@ def extract_landmarks(path) -> np.ndarray:
             landmarks[i] = [x, y, z]
     
     return landmarks
+
+def extract_headpose(path) -> np.ndarray:
+    """
+    frame, timestamp, confidence, success, Tx, Ty, Tz, Rx, Ry, Rz
+    1, 0, 0.939744, 1, 69.3181, 39.2286, 575.033, 0.203683, -0.0885823, -0.0504782
+    """
+
+    head_pose = np.zeros((3, 2)) # TODO: should this be a (6,1) array?
+
+    with open(path, 'r') as f:
+        next(f)
+        raw_data = next(f)
+        if ('frame') in raw_data:
+            raise Exception(f"Raw data contains file metadata; are you sure you skipped the header?")
+
+        raw_data = raw_data.split(', ')
+        raw_data = [float(x) for x in raw_data]
+        raw_data = raw_data[4:] # remove frame, timestamp, confidence, success fields
+        
+        head_pose[0][0] = raw_data[0]
+        head_pose[0][1] = raw_data[1]
+        head_pose[0][2] = raw_data[2]
+        head_pose[1][0] = raw_data[3]
+        head_pose[1][1] = raw_data[4]
+        head_pose[1][2] = raw_data[5]
+
+        print(f'head pose: \n{head_pose}')
+
+    return head_pose
