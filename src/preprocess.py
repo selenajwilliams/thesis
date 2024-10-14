@@ -1,14 +1,14 @@
 import numpy as np
 import itertools
-import utils
+# import utils
 # from utils import extract_3D_landmarks
 
 ## Ocular Modalities 
 # we will first do this for a single set of facial landmarks
 
-def process_3D_landmarks(face: np.ndarray) -> np.ndarray:
+def process_single_landmark(face: np.ndarray, frame: int) -> np.ndarray:
     """
-    process_3D_landmarks pre-pprocesses the 3D facial landmarks for a single frame of landmarks through  
+    process_single_landmark pre-pprocesses the 3D facial landmarks for a single frame of landmarks through  
     the following steps:
     1. Scale the Z-coordinate by first removing its average value (calculated over all the time steps), 
     from all the time steps
@@ -18,18 +18,22 @@ def process_3D_landmarks(face: np.ndarray) -> np.ndarray:
     4. Append this to the scaled coordinates of the facial landmarks, getting a vector of length 2482
     """
     # 1. scale Z coordinates 
-    avg_z = np.mean(face[:,2]) # validated correctness with a toy array
-    face[:,2] = face[:, 2] - avg_z # verified using print statements
+    avg_z = np.mean(face[:,2]) 
+    face[:,2] = face[:, 2] - avg_z 
 
     # 2. Normalize so mean distance from origin = 1
-    x_origin, y_origin = face[33, 0], face[33, 1] # nose center
+    x_origin, y_origin = face[33, 0], face[33, 1] # define origin as tip of nose
     xyz_orig = [x_origin, y_origin, avg_z]
-    distances = np.zeros((face.shape[0], 1)) # from origin
-    for i in range(len(face)):
+    distances = np.zeros((face.shape[0], 1)) 
+    # 
+    for i in range(face.shape[0]):
         distances[i] = np.linalg.norm(face[i] - xyz_orig)
     avg_dist = np.mean(distances) 
-    face = face / avg_dist 
-    xyz_orig = xyz_orig / avg_dist
+    if avg_dist > 0:
+        face = face / avg_dist 
+        xyz_orig = xyz_orig / avg_dist
+    else:
+        raise ValueError(f'ERROR: at frame {frame}, the average distance between origin and other pairs is 0')
 
     # 3. Compute the distance between all possible pairs of landmarks 
     point_pairs = list(itertools.combinations(range(face.shape[0]), 2))
@@ -47,18 +51,15 @@ def proces_headpose(hp: np.ndarray) -> np.ndarray:
     hp[0,:] /= 100
     return hp
 
-
-
-
 def main():
     # data_path_3D_lndmrks = "../data/300_P/300_CLNF_features3D.txt" # local path
     lndmkrs_3D_path = "../data/300_CLNF_features3D.txt" # OSCAR path
     face = utils.extract_3D_landmarks(lndmkrs_3D_path)
-    face = process_3D_landmarks(face)
+    face = process_single_landmark(face)
 
-    headpose_path = "../data/300_P/300_CLNF_pose.txt"
-    hp = utils.extract_headpose(headpose_path)
-    hp = proces_headpose(hp)
+    # headpose_path = "../data/300_P/300_CLNF_pose.txt"
+    # hp = utils.extract_headpose(headpose_path)
+    # hp = proces_headpose(hp)
     
 
 def test_process_3D_landmark():
