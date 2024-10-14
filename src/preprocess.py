@@ -1,10 +1,62 @@
-import numpy as np
-import itertools
-# import utils
-# from utils import extract_3D_landmarks
 
-## Ocular Modalities 
-# we will first do this for a single set of facial landmarks
+import numpy as np
+import csv
+import sys
+import matplotlib.pyplot as plt
+import time
+import pprint
+import itertools
+
+
+""" This part of the file pre-processes the visual data (facial landmarks, headpose)
+    Note that no pre-processing is necessary for the eye-gaze data or facial action
+    units, as they are already normalized in the dataset.
+"""
+def process_3D_landmarks(path) -> np.ndarray:
+    """ Reads in the 3D facial landmark data line by line, applying preprocessing steps outlined in research
+        paper 
+        Returns: np array of facial landmark data of shape (2482, num_frames), where the first dimension is 
+        a vector of length 2482 containing the 68 flattened 3D facial landmarks and the average distances 
+        between each pair of landmarks (which have been processed according to the paper)
+        Average runtime on Mac OS (Intel Processor) is ~25-30 seconds
+    """
+    print(f'in utils, processing 3D facial landmark data...')
+    start_time = int(time.time())
+    np.set_printoptions(precision=3, suppress=True)
+    max_i = 0
+
+    ## read in landmark data
+    landmarks = np.zeros((2482, 10000))
+    time_idx = 0 # represents the location in the head_pose array after scaling from 30 Hz -> 5 Hz
+    unsuccessful_frames = {}
+    with open(path, 'r') as f:
+        for i, line in enumerate(f):
+            max_i = i
+            if (i-1) % 6 != 0 or i == 0: # only include every 1 in 6 frames to reduce from 30 Hz to 5 Hz
+                continue
+            data = line.strip('\n').split(', ')
+            if time_idx % 500 == 0:
+                print(f'   processing {time_idx:,}th frame in the landmarks array')
+            # skip any frames that were unsucessful in capturing  data
+            success = int(data[3]) 
+            if not success:
+                unsuccessful_frames[i-1] = data
+                continue
+            data = [float(x) for x in data] # cvt str -> float
+            data = data[4:]
+            frame = np.array(data).reshape(68, 3) 
+            landmarks[:, time_idx] = process_single_landmark(frame, i-1)
+            time_idx += 1
+    # crop landmarks to remove zero-padding
+    landmarks = landmarks[:, :time_idx]
+
+    # helpful print statements
+    # print(f'there were {len(unsuccessful_frames)} unsuccessful frames occuring at the following frames: \n{list(unsuccessful_frames.keys())}')
+    # print(f'There were {len(unsuccessful_frames)} unsuccessful frames ({round(100 * len(unsuccessful_frames) / landmarks.shape[1], 3)}%) when processing the facial landmarks')
+    # print(f'Landmarks was cvted from {max_i} to {time_idx} frames')
+    end_time = int(time.time())
+    print(f'finished processing all {time_idx:,} landmark frames in {(end_time - start_time) // 60}m {round((time.time() - start_time) % 60, 2)}s')
+    return landmarks
 
 def process_single_landmark(face: np.ndarray, frame: int) -> np.ndarray:
     """
@@ -46,23 +98,54 @@ def process_single_landmark(face: np.ndarray, frame: int) -> np.ndarray:
     final_vector = np.concatenate((face, pair_distances))
     return final_vector
 
-def proces_headpose(hp: np.ndarray) -> np.ndarray:
-    print(f'runnig process headpose...')
-    hp[0,:] /= 100
-    return hp
-
-def main():
-    # data_path_3D_lndmrks = "../data/300_P/300_CLNF_features3D.txt" # local path
-    lndmkrs_3D_path = "../data/300_CLNF_features3D.txt" # OSCAR path
-    face = utils.extract_3D_landmarks(lndmkrs_3D_path)
-    face = process_single_landmark(face)
-
-    # headpose_path = "../data/300_P/300_CLNF_pose.txt"
-    # hp = utils.extract_headpose(headpose_path)
-    # hp = proces_headpose(hp)
+def process_headpose_data(path) -> np.ndarray:
+    """
+    Reads in head pose data line by line, applying scaling normalization (diving by 100 for Tx Ty Tz) and
+    time series normalzation (going from 30 Hz (fps) to 5 Hz)
+    Returns: numpy array of head pose data for the entire interview for a single participant
+             numpy array has dimensions: [[Tx Ty Tx],
+                                          [Rx Ry Rz]] 
+              where the 3rd dimension is time
     
+    Note that in error cases we skip the unsucessful frame. An alternate approach would be checking
+    if neighboring frames are successful and if so, appending them
+    Also note that this code processes the frames to modify indexing from 1 indexing to 0 indexing, 
+    which leads to a mismatch in the source data (since the source data is never modified)
+    """
+    print(f'processing headpose data...')
+    start_time = int(time.time())
+    np.set_printoptions(precision=3, suppress=True)
+    head_pose = np.zeros((2, 3, 10000))
+    time_idx = 0 # represents the location in the head_pose array after scaling from 30 Hz -> 5 Hz
+    unsuccessful_frames = {}
 
-def test_process_3D_landmark():
+    with open(path, 'r') as f:
+        for i, line in enumerate(f):
+            if (i-1) % 6 != 0 or i == 0: # only include every 1 in 6 frames to reduce from 30 Hz to 5 Hz
+                continue 
+            data = line.strip('\n').split(', ')
+            success = int(data[3]) 
+            # skip any frames that were unsucessful in capturing headpose data
+            if not success:
+                unsuccessful_frames[i-1] = data
+                continue
+            data = [float(x) for x in data] # cvt str -> float
+            data = data[4:]
+            head_pose[:2, :3, time_idx] = np.array(data).reshape(2, 3) 
+            time_idx += 1
+
+    # Normalize Tx Ty Tz by diving by 100
+    head_pose[0,:,:] /= 100
+    # print(f'there were {len(unsuccessful_frames)} unsuccessful frames occuring at the following frames: \n{list(unsuccessful_frames.keys())}')
+    # print(f'head_pose was cvted from {max_i} to {time_idx} frames')
+    end_time = int(time.time())
+    print(f'processed headpose data in {(end_time - start_time) // 60}m {round((time.time() - start_time) % 60, 2)}s')
+    return head_pose
+
+def test_process_single_landmark():
+    """ Tests that the per-frame processing steps function correctly
+        Accuracy across time-steps was tested manually
+    """
     test_avg_z()
     test_scaling_coords()
     test_distance_between_pair_points()
@@ -153,7 +236,10 @@ def test_process_3D_landmark():
         print(f'final vec: {final_vec}')
         print(f'EXPECT (22,) -- final vec shape: {final_vec.shape}')
 
- 
-       
-if __name__ == "__main__":
-    main()
+""" This part of the file pre-processes audio data
+"""
+
+
+
+# process_headpose_data( "../data/300_P/300_CLNF_pose.txt")
+process_3D_landmarks( "../data/300_P/300_CLNF_features3D.txt")
