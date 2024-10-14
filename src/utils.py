@@ -3,6 +3,7 @@ import numpy as np
 import csv
 import sys
 import matplotlib.pyplot as plt
+import pprint
 
 # read in the facial landmarks for the first frame
 # returns a np array of 68 3D facial landmarks
@@ -42,39 +43,36 @@ def process_headpose_data(path) -> np.ndarray:
              numpy array has dimensions: [[Tx Ty Tx],
                                           [Rx Ry Rz]] 
               where the 3rd dimension is time
-
+    
+    Note that in error cases we skip the unsucessful frame. An alternate approach would be checking
+    if neighboring frames are successful and if so, appending them
+    Also note that this code processes the frames to modify indexing from 1 indexing to 0 indexing, 
+    which leads to a mismatch in the source data (since the source data is never modified)
     """
     head_pose = np.zeros((2, 3, 10000))
-    frame_idx = 0
-    max_i = 0
+    time_idx = 0 # represents the location in the array after scaling from 30 Hz -> 5 Hz
+    unsuccessful_frames = {}
 
     with open(path, 'r') as f:
         for i, line in enumerate(f):
-            max_i = i
             if (i-1) % 6 != 0 or i == 0: # only include every 1 in 6 frames to reduce from 30 Hz to 5 Hz
                 continue 
-            data = line.split(', ')
+            data = line.strip('\n').split(', ')
             success = int(data[3]) 
-            frame = int(data[0])-1  # modify to acct for 0-based indexing
 
             if not success:
-                print(f'UNSUCCESSFUL FRAME: value for frame {frame} is 0')
+                unsuccessful_frames[i-1] = data
                 continue
             data = [float(x) for x in data] # cvt str -> float
             data = data[4:]
-            # print(f'saving frame {i-1} to {i-1%6} in headpose array')
-            head_pose[:2, :3, frame_idx] = np.array(data).reshape(2, 3) # frame -1 to acct for 0-based indexing
-            # print(f'head_pose array at {frame_idx}: {head_pose[:,:,frame_idx]}')
-            frame_idx += 1
+            head_pose[:2, :3, time_idx] = np.array(data).reshape(2, 3) 
+            time_idx += 1
             np.set_printoptions(precision=3, suppress=True)
 
-    print(f'headpose[:,:,0]: {head_pose[:,:, 0]}')
     # Normalize Tx Ty Tz by diving by 100
     head_pose[0,:,:] /= 100
-    print(f'headpose[:,:,0]: {head_pose[:,:, 0]}')
 
-    # for i in range(10): # print the first 10 frames
-    #     print(head_pose[:,:,i])
-    print(f'head_pose was cvted from {max_i} to {frame_idx} frames')
+    # print(f'there were {len(unsuccessful_frames)} unsuccessful frames occuring at the following frames: \n{list(unsuccessful_frames.keys())}')
+    # print(f'head_pose was cvted from {max_i} to {frame_idx} frames')
 
 process_headpose_data( "../data/300_P/300_CLNF_pose.txt")
