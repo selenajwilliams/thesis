@@ -2,3 +2,4 @@ env/
 data/
 openface-build/
 OpenFace/
+src/__pycache__
