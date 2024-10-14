@@ -1,22 +1,22 @@
 import numpy as np
 import itertools
-from utils import extract_3D_landmarks
+import utils
+# from utils import extract_3D_landmarks
 
 ## Ocular Modalities 
 # we will first do this for a single set of facial landmarks
 
-"""
-This function pre-processes the 3D facial landmarks for a single frame of landmarks through the 
-following steps:
-1. Scale the Z-coordinate by first removing its average value (calculated over all the time steps), 
-   from all the time steps
-2. Scale the coordinates so that the mean distance of each point from the origin of the coordinate 
-   system is 1
-3. Compute the euclidean distance between all the possible 2278 point pairs
-4. Append this to the scaled coordinates of the facial landmarks, getting a vector of length 2482
-"""
-
 def process_3D_landmarks(face: np.ndarray) -> np.ndarray:
+    """
+    process_3D_landmarks pre-pprocesses the 3D facial landmarks for a single frame of landmarks through  
+    the following steps:
+    1. Scale the Z-coordinate by first removing its average value (calculated over all the time steps), 
+    from all the time steps
+    2. Scale the coordinates so that the mean distance of each point from the origin of the coordinate 
+    system is 1
+    3. Compute the euclidean distance between all the possible 2278 point pairs
+    4. Append this to the scaled coordinates of the facial landmarks, getting a vector of length 2482
+    """
     # 1. scale Z coordinates 
     avg_z = np.mean(face[:,2]) # validated correctness with a toy array
     face[:,2] = face[:, 2] - avg_z # verified using print statements
@@ -42,16 +42,22 @@ def process_3D_landmarks(face: np.ndarray) -> np.ndarray:
     final_vector = np.concatenate((face, pair_distances))
     return final_vector
 
-def proces_headpose() -> np.ndarray:
-    pass
+def proces_headpose(hp: np.ndarray) -> np.ndarray:
+    print(f'runnig process headpose...')
+    hp[0,:] /= 100
+    return hp
 
 
 def main():
     # data_path_3D_lndmrks = "../data/300_P/300_CLNF_features3D.txt" # local path
-    data_path_3D_lndmrks = "../data/300_CLNF_features3D.txt" # OSCAR path
-    face = extract_3D_landmarks(data_path_3D_lndmrks)
+    lndmkrs_3D_path = "../data/300_CLNF_features3D.txt" # OSCAR path
+    face = utils.extract_3D_landmarks(lndmkrs_3D_path)
     face = process_3D_landmarks(face)
 
+    headpose_path = "../data/300_P/300_CLNF_pose.txt"
+    hp = utils.extract_headpose(headpose_path)
+    hp = proces_headpose(hp)
+    
 
 def test_process_3D_landmark():
     test_avg_z()
