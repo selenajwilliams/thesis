@@ -54,7 +54,6 @@ def process_3D_landmarks(path) -> np.ndarray:
 
     ## read in landmark data
     landmarks = np.zeros((2482, 10000))
-    # landmarks = np.zeros((68, 3, 10000))
     time_idx = 0 # represents the location in the head_pose array after scaling from 30 Hz -> 5 Hz
     unsuccessful_frames = {}
     with open(path, 'r') as f:
@@ -64,40 +63,29 @@ def process_3D_landmarks(path) -> np.ndarray:
                 continue
             data = line.strip('\n').split(', ')
             if time_idx % 500 == 0:
-                print(f'processing {time_idx}th frame in the landmarks array')
-                # print(f'time idx: {time_idx}, frame: {data[0]}')
-                # print(f'line: {line[:50]}')
-            
-            if time_idx > 1000:
-                break
-
-            success = int(data[3]) 
+                print(f'   processing {time_idx}th frame in the landmarks array')
             # skip any frames that were unsucessful in capturing  data
+            success = int(data[3]) 
             if not success:
                 unsuccessful_frames[i-1] = data
                 continue
             data = [float(x) for x in data] # cvt str -> float
             data = data[4:]
             frame = np.array(data).reshape(68, 3) 
-            if i-1 == 0:
-                print(f'frame 0: {frame}')
             landmarks[:, time_idx] = preprocess.process_single_landmark(frame, i-1)
             time_idx += 1
-    print(f'before cropping time idx, landmarks shape is: {landmarks.shape}')
+    # crop landmarks to remove zero-padding
     landmarks = landmarks[:, :time_idx]
-    print(f'after cropping time idx, landmarks shape is: {landmarks.shape}')
-
 
 
     # print(f'there were {len(unsuccessful_frames)} unsuccessful frames occuring at the following frames: \n{list(unsuccessful_frames.keys())}')
+    print(f'there were {len(unsuccessful_frames)} unsuccessful frames ({round(100 * len(unsuccessful_frames) / landmarks.shape[1], 3)}%) when processing the facial landmarks')
     print(f'landmarks was cvted from {max_i} to {time_idx} frames')
     end_time = int(time.time())
     print(f'in utils, processed landmark data in {(end_time - start_time) // 60}m {round((time.time() - start_time) % 60, 2)}s')
-    print(f'landmarks shape: {landmarks.shape}')
-    for i in range(3):
-        print(f'shape of landmark[i] (we expect (2842,)) -- {landmarks[:,i].shape}')
-        print(f'landmark[{i}]:\n {landmarks[:,i]}')
     
+    print(f'landmarks shape: {landmarks.shape}')
+    print(f'landmarks second dimension: {landmarks.shape[1]}')
     return landmarks
 
 
