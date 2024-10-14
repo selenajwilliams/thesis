@@ -34,72 +34,16 @@ def extract_3D_landmarks(path) -> np.ndarray:
     return landmarks
 
 
-"""
-This processes a single line of head-pose data (and currently opens the file)
-"""
-def extract_headpose(path) -> np.ndarray:
-    """
-    frame, timestamp, confidence, success, Tx, Ty, Tz, Rx, Ry, Rz
-    1, 0, 0.939744, 1, 69.3181, 39.2286, 575.033, 0.203683, -0.0885823, -0.0504782
-    """
-    head_pose = np.zeros((2, 3))
-    with open(path, 'r') as f:
-        raw_data = next(f)
-        if ('frame') in raw_data:
-            raise Exception(f"Raw data contains file metadata; are you sure you skipped the header?")
-        raw_data = raw_data.split(', ')
-        raw_data = [float(x) for x in raw_data]
-        if raw_data[3] != 0: # check if success metadata != 0 
-            raw_data = raw_data[4:] # remove frame, timestamp, confidence, success fields
-            head_pose[:2, :3] = np.array(raw_data).reshape(2, 3)
-
-    return head_pose
-
-
-"""
-Reads a file in line by line, processing every 6th line (reducing data from 30 fps to 5 fps (Hz))
-"""
-def extract_headpose_over_time(path, modality) -> np.ndarray:
-    """
-    frame, timestamp, confidence, success, Tx, Ty, Tz, Rx, Ry, Rz
-    1, 0, 0.939744, 1, 69.3181, 39.2286, 575.033, 0.203683, -0.0885823, -0.0504782
-    """
-    head_pose = np.zeros((2, 3, 10000))
-    with open(path, 'r') as f:                  #### from here 
-        for line in enumerate(f):
-            frame = int(line[0])
-            if frame % 6 == 0: 
-                line = line.split(', ')
-                success = line[3]
-                if success:
-                    data = line[4:]             #### to here is universal
-                    head_pose[:2, :3, frame] = np.array(data).reshape(2, 3)
-                    head_pose[:1, :3, frame] /= 100
-                    # type-specific processing here
-
-
-                    # process(path, modality)
-
-
-        # raw_data = next(f)
-        # if ('frame') in raw_data:
-        #     raise Exception(f"Raw data contains file metadata; are you sure you skipped the header?")
-        # raw_data = raw_data.split(', ')
-        # raw_data = [float(x) for x in raw_data]
-        # if raw_data[3] != 0: # check if success metadata != 0 
-        #     raw_data = raw_data[4:] # remove frame, timestamp, confidence, success fields
-        #     head_pose[:2, :3] = np.array(raw_data).reshape(2, 3)
-
-    return head_pose
-
-def proces_headpose(hp: np.ndarray) -> np.ndarray:
-    print(f'runnig process headpose...')
-    hp[0,:] /= 100
-    return hp
-
-
-
 def head_pose_entire_file(path) -> np.ndarray:
+    """
+    Reads in head pose data line by line, applying scaling normalization (diving by 100 for Tx Ty Tz) and
+    time series normalzation (going from 30 Hz (fps) to 5 Hz)
+    Returns: numpy array of head pose data for the entire interview for a single participant
+             numpy array has dimensions: [[Tx Ty Tx],
+                                          [Rx Ry Rz]] 
+              where the 3rd dimension is time
+
+    """
     head_pose = np.zeros((2, 3, 10000))
     frame_idx = 0
     max_i = 0
