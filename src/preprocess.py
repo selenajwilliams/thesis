@@ -7,6 +7,8 @@ import time
 import pprint
 import itertools
 import re
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'  # this removes warnings about rebuilding tensorflow with compiler flags. If TF is being too slow, comment this out and follow instructions from warning to improve runtime
 
 
 """ This part of the file pre-processes the visual data (facial landmarks, headpose)
@@ -243,11 +245,22 @@ def test_process_single_landmark():
 """ skipping for now
 """
 
-""" This part of the file pre-processes text data
+""" This part of the file pre-processes text data through the following steps:
+    1. Parse the transcript for participant speech, saving all utterances >1 second
+       * Note: We define an utterance as any block of user speech totaling > 1 second in time;
+               multiple consecutive participant lines in the transcript form a single utterance
+    2. Replace informalisms in user speech with proper english (e.g. ain't becomes are not)
+    3. Pass each sentence into a universal sentence encoder, resulting in a 512 dimensional 
+       vector for each utterance
+       * Note: We consider each utterance to be a sentence 
+       Returns: np array with dimensions (512, 4,000) where each row is a 512-dimension embedding 
+       of a sentence. We pad along the time-axis with zeros to achieve uniform shape of (512, 4000)
 """
 
-def process_transcript(path) -> list[str]:
+
+def process_transcript(path) -> np.ndarray:
     print(f'running process_transcript...')
+    embeddings = np.zeros((512, 4000))
     with open(path, 'r') as f:
         utterances = []
         current_start = 0
@@ -260,9 +273,6 @@ def process_transcript(path) -> list[str]:
             max_i = i
             if i == 0:
                 continue
-            # if i > 150:
-            #     break
-
             data = line.strip('\n').split('\t') # start time, stop time, text
             start_time, stop_time = float(data[0]), float(data[1])
             speaker, text = data[2].lower(), data[3].lower()
@@ -279,12 +289,40 @@ def process_transcript(path) -> list[str]:
                 current_start, current_end, curr_text = 0, 0, ""
         # print(f'total text:')
         # [print(i) for i in utterances]
+        print(f'   computing sentence embeddings for {len(utterances)} utternaces')
+        embeddings[:,:len(utterances)] = get_sentence_embedding(utterances)
         
         timer_end = time.time()
         # runs in approximately 0.004s 
-        print(f'processed transcript with {max_i} lines and {len(utterances)} utterances in {int((timer_end - timer_start) // 60)}m {round((timer_end - timer_start) % 60, 3)}s')
-        return utterances
+        print(f'processed transcript with {max_i} lines and {len(utterances)} utterances into an {embeddings.shape} embeddings array in {int((timer_end - timer_start) // 60)}m {round((timer_end - timer_start) % 60, 3)}s')
+        return embeddings
 
+""" Given a list of utterances, returns an embedding of all the utterances
+    returns a (512, len(utterances)) np array where 512 is the shape of
+    the embedding of each utterance, and len(utterances) means that there
+    is a row/embedding for every utternace
+    Adapted from this tensorflow tutorial: https://www.tensorflow.org/hub/tutorials/semantic_similarity_with_tf_hub_universal_encoder
+"""
+def get_sentence_embedding(utterances: list[str]) -> np.ndarray:
+    from absl import logging
+    import tensorflow_hub as hub
+    logging.set_verbosity(logging.ERROR)
+    module_url = "https://tfhub.dev/google/universal-sentence-encoder/4"    
+    # print(f'loading model now...') # uncomment to see how long it takes to load the model (~a couple seconds)
+    model = hub.load(module_url)
+    embedding = model(utterances) # run inference on the text, which expects a list of msgs
+
+    # uncomment to see the message, embedding shape (512), and embedding snippet for each utterance
+    # for i, message_embedding in enumerate(np.array(embedding).tolist()):
+    #     print("Message: {}".format(utterances[i]))
+    #     print("Embedding size: {}".format(len(message_embedding)))
+    #     message_embedding_snippet = ", ".join(
+    #         (str(x) for x in message_embedding[:3]))
+    #     print("Embedding: [{}, ...]\n".format(message_embedding_snippet))
+
+    embedding = embedding.numpy() # cvt to np array and reshape for dimensions (512,)
+    embedding = np.squeeze(embedding.T)
+    return embedding
 
 """ This helper function removes the informalisms from a signle line of text, by replacing contractions and
     removing 'um' and 'uh'
@@ -353,8 +391,6 @@ def remove_informalisms(text: str) -> str:
     text = pattern.sub(lambda x: contractions_dict[x.group()], text) # substitute informalisms
     text = re.sub(r'\s+', ' ', text).strip() # remove extra spaces left behind from removing 'ums'
     return text
-            
-    
 
 
 # process_headpose_data( "../data/300_P/300_CLNF_pose.txt")
