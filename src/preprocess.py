@@ -245,22 +245,25 @@ def test_process_single_landmark():
 """ skipping for now
 """
 
-""" This part of the file pre-processes text data through the following steps:
+""" This part of the file pre-processes text data
+"""
+
+""" process_transcript processes the text data through the following steps:
     1. Parse the transcript for participant speech, saving all utterances >1 second
-       * Note: We define an utterance as any block of user speech totaling > 1 second in time;
-               multiple consecutive participant lines in the transcript form a single utterance
+       Note: We define an utterance as any block of user speech totaling > 1 second in time;
+             multiple consecutive participant lines in the transcript form a single utterance
     2. Replace informalisms in user speech with proper english (e.g. ain't becomes are not)
     3. Pass each sentence into a universal sentence encoder, resulting in a 512 dimensional 
        vector for each utterance
-       * Note: We consider each utterance to be a sentence 
-       Returns: np array with dimensions (512, 4,000) where each row is a 512-dimension embedding 
-       of a sentence. We pad along the time-axis with zeros to achieve uniform shape of (512, 4000)
+       Note: We consider each utterance to be a sentence 
+       
+    Returns: np array with dimensions (512, 4,000) where each row is a 512-dimension embedding 
+             of a sentence. We pad along the time-axis with zeros to achieve uniform shape of 
+             (512, 4000)
 """
-
-
 def process_transcript(path) -> np.ndarray:
     print(f'running process_transcript...')
-    embeddings = np.zeros((512, 4000))
+    embeddings = np.zeros((512, 400))
     with open(path, 'r') as f:
         utterances = []
         current_start = 0
