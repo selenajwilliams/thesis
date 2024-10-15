@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import time
 import pprint
 import itertools
+import re
 
 
 """ This part of the file pre-processes the visual data (facial landmarks, headpose)
@@ -245,37 +246,113 @@ def test_process_single_landmark():
 """ This part of the file pre-processes text data
 """
 
-def process_transcript(path):
+def process_transcript(path) -> list[str]:
     print(f'running process_transcript...')
     with open(path, 'r') as f:
-        cumulative_speech = ""
-        current_start = None
-        current_end = None
-        total_time = 0
+        utterances = []
+        current_start = 0
+        current_end = 0
+        curr_text = ""
+        max_i = 0
+        timer_start = time.time()
 
         for i, line in enumerate(f):
+            max_i = i
             if i == 0:
                 continue
-            if i > 10:
-                break
+            # if i > 150:
+            #     break
 
             data = line.strip('\n').split('\t') # start time, stop time, text
-            
-            if 'ellie' in data[2].lower():
-                participant_speaking = False
-                continue
-            else: # participant is speaking
-                if participant_speaking:
-                    print(f'if reached at line {i}')
-                    participant_speech[speech_idx][1] = data[1] # update end time
-                    participant_speech[speech_idx][2] += data[3]
-                else:
-                    print(f'else reached at line {i}')
-                    #                                start_time, stop_time, utterance
-                    speech_idx += 1
-                    participant_speech[speech_idx] = [data[0], data[1], data[3]]
-                participant_speaking = True
-    pprint.pprint(participant_speech)
+            start_time, stop_time = float(data[0]), float(data[1])
+            speaker, text = data[2].lower(), data[3].lower()
+            if speaker == "participant":
+                if current_start == 0:
+                    current_start = start_time
+                current_end = stop_time
+                curr_text += f' {text}' 
+            else: # Ellie speaking
+                total_time = current_end - current_start
+                if total_time > 1:
+                    curr_text = remove_informalisms(curr_text)
+                    utterances.append(curr_text)
+                current_start, current_end, curr_text = 0, 0, ""
+        # print(f'total text:')
+        # [print(i) for i in utterances]
+        
+        timer_end = time.time()
+        # runs in approximately 0.004s 
+        print(f'processed transcript with {max_i} lines and {len(utterances)} utterances in {int((timer_end - timer_start) // 60)}m {round((timer_end - timer_start) % 60, 3)}s')
+        return utterances
+
+
+""" This helper function removes the informalisms from a signle line of text, by replacing contractions and
+    removing 'um' and 'uh'
+"""
+def remove_informalisms(text: str) -> str:
+    contractions_dict = {
+        # slang
+        "um"    : "",
+        "uh"    : "",
+        "y'all" : "you all",
+        # contractions
+        "aren't"    : "are not",
+        "can't"     : "cannot",
+        "couldn't"  : "could not",
+        "didn't"    : "did not",
+        "doesn't"   : "does not",
+        "don't"     : "do not",
+        "hadn't"    : "had not",
+        "hasn't"    : "has not",
+        "haven't"   : "have not",
+        "he'd"      : "he would",  # or "he had" depending on context
+        "he'll"     : "he will",
+        "he's"      : "he is",     # or "he has" depending on context
+        "I'd"       : "I would",   # or "I had" depending on context
+        "I'll"      : "I will",
+        "I'm"       : "I am",
+        "I've"      : "I have",
+        "isn't"     : "is not",
+        "it'd"      : "it would",  # or "it had" depending on context
+        "it'll"     : "it will",
+        "it's"      : "it is",     # or "it has" depending on context
+        "let's"     : "let us",
+        "mightn't"  : "might not",
+        "mustn't"   : "must not",
+        "shan't"    : "shall not",
+        "she'd"     : "she would", # or "she had" depending on context
+        "she'll"    : "she will",
+        "she's"     : "she is",    # or "she has" depending on context
+        "shouldn't" : "should not",
+        "that's"    : "that is",   # or "that has" depending on context
+        "there's"   : "there is",  # or "there has" depending on context
+        "they'd"    : "they would",# or "they had" depending on context
+        "they'll"   : "they will",
+        "they're"   : "they are",
+        "they've"   : "they have",
+        "we'd"      : "we would",  # or "we had" depending on context
+        "we're"     : "we are",
+        "we've"     : "we have",
+        "weren't"   : "were not",
+        "what'll"   : "what will",
+        "what're"   : "what are",
+        "what's"    : "what is",   # or "what has" depending on context
+        "what've"   : "what have",
+        "where's"   : "where is",  # or "where has" depending on context
+        "who'd"     : "who would", # or "who had" depending on context
+        "who'll"    : "who will",
+        "who's"     : "who is",    # or "who has" depending on context
+        "won't"     : "will not",
+        "wouldn't"  : "would not",
+        "you'd"     : "you would", # or "you had" depending on context
+        "you'll"    : "you will",
+        "you're"    : "you are",
+        "you've"    : "you have",
+    }
+    pattern = re.compile(r'\b(' + '|'.join(re.escape(key) for key in contractions_dict.keys()) + r')\b')
+    text = pattern.sub(lambda x: contractions_dict[x.group()], text) # substitute informalisms
+    text = re.sub(r'\s+', ' ', text).strip() # remove extra spaces left behind from removing 'ums'
+    return text
             
     
 
