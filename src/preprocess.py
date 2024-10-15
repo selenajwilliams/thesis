@@ -239,7 +239,47 @@ def test_process_single_landmark():
 """ This part of the file pre-processes audio data
 """
 
+""" skipping for now
+"""
+
+""" This part of the file pre-processes text data
+"""
+
+def process_transcript(path):
+    print(f'running process_transcript...')
+    with open(path, 'r') as f:
+        cumulative_speech = ""
+        current_start = None
+        current_end = None
+        total_time = 0
+
+        for i, line in enumerate(f):
+            if i == 0:
+                continue
+            if i > 10:
+                break
+
+            data = line.strip('\n').split('\t') # start time, stop time, text
+            
+            if 'ellie' in data[2].lower():
+                participant_speaking = False
+                continue
+            else: # participant is speaking
+                if participant_speaking:
+                    print(f'if reached at line {i}')
+                    participant_speech[speech_idx][1] = data[1] # update end time
+                    participant_speech[speech_idx][2] += data[3]
+                else:
+                    print(f'else reached at line {i}')
+                    #                                start_time, stop_time, utterance
+                    speech_idx += 1
+                    participant_speech[speech_idx] = [data[0], data[1], data[3]]
+                participant_speaking = True
+    pprint.pprint(participant_speech)
+            
+    
 
 
 # process_headpose_data( "../data/300_P/300_CLNF_pose.txt")
-process_3D_landmarks( "../data/300_P/300_CLNF_features3D.txt")
+# process_3D_landmarks( "../data/300_P/300_CLNF_features3D.txt")
+process_transcript("../data/300_P/300_TRANSCRIPT.csv")
