@@ -1,5 +1,6 @@
 env/
 data/
+data_backup/
 openface-build/
 OpenFace/
 src/__pycache__

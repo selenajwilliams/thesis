@@ -59,8 +59,64 @@ def download_data(download_dir):
     total_secs = (end_time - start_time) % 60
     print(f'downloading {len(links)} took {total_mins} m, {round(total_secs, 4)} s')
 
+import zipfile
+import shutil
+def unzip_files(dir):
+    failed_zips = []
+    failed_moves = []
+    # create a folder to move the .zip files into after extracting them
+    zip_folder = f'{dir}zips'
+    if not os.path.exists(zip_folder):
+        os.makedirs(zip_folder)
+    
+    i = 0
+    for zip_file in os.listdir(dir):
+        if i == 500:
+            break
+        if 'zip' not in zip_file:
+            continue
+        if zip_file == "zips": # skip the zips folder when encountered
+            continue
+        
+        # create a folder contianing the filepath if it doesn't exist
+        file_name = os.path.splitext(zip_file)[0] # removes file extension (e.g. .zip, .pdf, etc)
+        new_folder = f'{dir}{file_name}'
+        if not os.path.exists(new_folder):
+            os.makedirs(new_folder)
+        
+        current_zip_path = f'{dir}{zip_file}'
+        
+        try:
+            print(f'unzipping {current_zip_path}') 
+            with zipfile.ZipFile(current_zip_path, 'r') as zip_ref:
+                zip_ref.extractall(new_folder)
+        except Exception as e:
+            print(f'error encountered when unzipping file, skipping to next file')
+            failed_zips.append(zip_file)
+            continue # if an error is encountered, don't move the broken zip file into the zips directory
+
+        try:
+            print(f'moving {zip_file} to {zip_folder}')
+            shutil.move(current_zip_path, os.path.join(zip_folder))
+        except Exception as e:
+            print(f'error encoutnered when moving file, skipping to next file')
+            failed_moves.append(zip_file)
+            continue
+
+        i += 1
+
+    print(f'failed to unzip {len(failed_zips)} files. The failed zips include: {failed_zips}')
+    print(f'failed to move {len(failed_moves)} files. The failed moves include: {failed_moves}')
+
+
+
+    
+
+
+
 print(f'Running download-data.py...')
 download_dir = '../data'
 download_data(download_dir=download_dir)
 
-
+test_dir = '../data_backup/'
+# unzip_files(test_dir)
