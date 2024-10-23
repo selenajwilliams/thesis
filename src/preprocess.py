@@ -8,6 +8,17 @@ import pprint
 import itertools
 import re
 import os
+# imports for covarep processing
+import pandas as pd
+from sklearn import preprocessing
+from keras.preprocessing import sequence
+
+
+
+
+
+
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'  # this removes warnings about rebuilding tensorflow with compiler flags. If TF is being too slow, comment this out and follow instructions from warning to improve runtime
 
 
@@ -242,8 +253,136 @@ def test_process_single_landmark():
 """ This part of the file pre-processes audio data
 """
 
-""" skipping for now
-"""
+def process_covarep_data(inpath, outpath) -> np.ndarray:
+    """ This functionality is adapted from Arbaaz Qureshi, author of Gender-Aware 
+        Estimation of Depression Severity Level in a Multimodal Setting, from
+        this github repo: 
+        https://github.com/arbaazQureshi/DAIC_WOZ_data_preprocessing/blob/master/acoustic/COVAREP/training_data/preprocessing.py
+    """
+
+    training_set_IDs = [300] 
+    print(f'running process covarep data for {len(training_set_IDs)} train IDs')
+
+
+    def preprocess():
+        print(f'preprocessing the data now...')
+        max_frames = -1
+        min_frames = 1000000000
+
+        for ID in training_set_IDs:
+        
+            print(ID, end='\r')
+            # for now we are hard coding the paths, but this can be made modular to handle all paths by doing: 
+            # data/'+str(ID)+'_P/'+str(ID)+'_COVAREP.csv' 
+            # data/'+str(ID)+'_P/'+str(ID)+'_TRANSCRIPT.csv' 
+            data = pd.read_csv('../data/300_P/300_COVAREP.csv', header=None)
+            transcript = pd.read_csv('../data/300_P/300_TRANSCRIPT.csv', sep='\t')
+
+            data = data.values
+            transcript = transcript.values
+                    
+            transcript = transcript[transcript[:,2] == 'Participant']
+            transcript = transcript[:, [0,1]]
+            transcript = (transcript*100 + 0.5).astype(int)
+
+            participant_speech_features = []
+            
+            for i in range(transcript.shape[0]):
+                
+                start_range = transcript[i,0]-15
+                end_range = transcript[i,1]+15
+                    
+                #if(end_range - start_range + 1 > 300):
+                participant_speech_features = participant_speech_features + data[start_range: end_range+1].tolist()
+            
+            participant_speech_features = np.array(participant_speech_features)
+            participant_speech_features = participant_speech_features[participant_speech_features[:,1] == 1]
+
+            participant_speech_features[:, 0:1] = preprocessing.scale(participant_speech_features[:, 0:1])
+            participant_speech_features[:, 2:] = preprocessing.scale(participant_speech_features[:, 2:])
+
+            participant_speech_features = np.hstack((participant_speech_features[:, 0:1], participant_speech_features[:, 2:]))
+
+            a = np.arange(participant_speech_features.shape[0])
+            participant_speech_features = participant_speech_features[a%4 == 0]
+
+            no_of_frames = participant_speech_features.shape[0]
+
+            if(max_frames < no_of_frames):
+                max_frames = no_of_frames
+
+            if(min_frames > no_of_frames):
+                min_frames = no_of_frames
+
+            # save each processed accoustic modality to a binary file if desired
+            # np.save(f'{outpath}/{ID}_COVAREP.npy', participant_speech_features)
+
+        print(max_frames, min_frames)
+        print(f'participant features are a {type(participant_speech_features)} with shape: {participant_speech_features.shape}')
+        return participant_speech_features 
+    
+    def pad(processed_unpadded_covarep_features):
+        X = []
+
+        for ID in training_set_IDs:
+            print(ID, end='\r')
+            # use the location & a setup if to load unpadded but preprocessed data from a file
+            # location = '/data/chercheurs/qureshi191/preprocessed_data/training_data/acoustic/COVAREP/individual/'+str(ID)+'_COVAREP.npy'
+            # a = np.load(location).T
+            X.append(sequence.pad_sequences(processed_unpadded_covarep_features, maxlen=22000, dtype='float32', padding='pre').T.tolist())
+
+        X = np.array(X)
+        print(f'the type of padded features is {type(X)} with shape {X.shape}')
+        return X
+
+    covarep_features = preprocess() # pre process
+    covarep_features = pad(covarep_features) # add padding
+
+    return covarep_features
+
+
+def process_formant_data(inpath, outpath) -> np.ndarray:
+    """ Processes formant data for a single participant interview 
+        Credit to: Arbaaz Qureshi, original implementation available at:
+        https://github.com/arbaazQureshi/DAIC_WOZ_data_preprocessing/tree/master
+    """
+    print(f'processing formant data...')
+
+    def preprocess():
+        max_frames = -1
+        min_frames = 1000000000
+        # modify to go through each participant
+        data = pd.read_csv('../data/300_P/300_COVAREP.csv', header=None)
+
+        data = data.values
+        a = np.arange(data.shape[0])
+
+        data = preprocessing.scale(data)
+        data = data[a%10 == 0]
+
+        if(max_frames < data.shape[0]):
+            max_frames = data.shape[0]
+
+        if(min_frames > data.shape[0]):
+            min_frames = data.shape[0]
+
+        print(max_frames, min_frames)
+        return data    
+
+    
+    def pad():
+            X = []
+            X.append(sequence.pad_sequences(X, maxlen=20000, dtype='float32', padding='pre').T.tolist())
+            X = np.array(X)
+            return X
+    
+    formant_data = preprocess()
+    print(f'after preprocessing, formant data has shape {formant_data.shape}')
+    formant_data = pad()
+    print(f'after padding, formant data has shape: {formant_data.shape}')
+    # np.save(outpath, formant_data) # optionally save the padded data to a file (this will redundantly save a lot of 0s to files -- consider modifying)
+    return formant_data
+
 
 """ This part of the file pre-processes text data
 """
@@ -396,6 +535,23 @@ def remove_informalisms(text: str) -> str:
     return text
 
 
+def main():
+    """ Process training, validation, and test data, saving the processed data to binary files
+    """
+    # process training data
+
+
+    # process development (validation) data
+
+
+    # process test data
+
+
+
+
+
 # process_headpose_data( "../data/300_P/300_CLNF_pose.txt")
 # process_3D_landmarks( "../data/300_P/300_CLNF_features3D.txt")
-process_transcript("../data/300_P/300_TRANSCRIPT.csv")
+# process_transcript("../data/300_P/300_TRANSCRIPT.csv")
+# process_covarep_data('', '')
+# process_formant_data('', '')
