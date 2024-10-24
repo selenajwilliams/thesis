@@ -13,12 +13,6 @@ import pandas as pd
 from sklearn import preprocessing
 from keras.preprocessing import sequence
 
-
-
-
-
-
-
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'  # this removes warnings about rebuilding tensorflow with compiler flags. If TF is being too slow, comment this out and follow instructions from warning to improve runtime
 
 
@@ -26,7 +20,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'  # this removes warnings about rebuildi
     Note that no pre-processing is necessary for the eye-gaze data or facial action
     units, as they are already normalized in the dataset.
 """
-def process_3D_landmarks(path) -> np.ndarray:
+def process_3D_landmarks(DIR, ID) -> np.ndarray:
     """ Reads in the 3D facial landmark data line by line, applying preprocessing steps outlined in research
         paper 
         Returns: np array of facial landmark data of shape (2482, num_frames), where the first dimension is 
@@ -35,6 +29,8 @@ def process_3D_landmarks(path) -> np.ndarray:
         Average runtime on Mac OS (Intel Processor) is ~25-30 seconds
     """
     print(f'in utils, processing 3D facial landmark data...')
+    path = f'{DIR}{ID}_P/{ID}_CLNF_features3D.txt'
+
     start_time = int(time.time())
     np.set_printoptions(precision=3, suppress=True)
     max_i = 0
@@ -112,7 +108,7 @@ def process_single_landmark(face: np.ndarray, frame: int) -> np.ndarray:
     final_vector = np.concatenate((face, pair_distances))
     return final_vector
 
-def process_headpose_data(path) -> np.ndarray:
+def process_headpose_data(DIR, ID) -> np.ndarray:
     """
     Reads in head pose data line by line, applying scaling normalization (diving by 100 for Tx Ty Tz) and
     time series normalzation (going from 30 Hz (fps) to 5 Hz)
@@ -127,6 +123,7 @@ def process_headpose_data(path) -> np.ndarray:
     which leads to a mismatch in the source data (since the source data is never modified)
     """
     print(f'processing headpose data...')
+    path = f'{DIR}{ID}_P/{ID}_CLNF_pose.txt'
     start_time = int(time.time())
     np.set_printoptions(precision=3, suppress=True)
     head_pose = np.zeros((2, 3, 10000))
@@ -253,86 +250,72 @@ def test_process_single_landmark():
 """ This part of the file pre-processes audio data
 """
 
-def process_covarep_data(inpath, outpath) -> np.ndarray:
+def process_covarep_data(DIR, ID) -> np.ndarray:
     """ This functionality is adapted from Arbaaz Qureshi, author of Gender-Aware 
         Estimation of Depression Severity Level in a Multimodal Setting, from
         this github repo: 
         https://github.com/arbaazQureshi/DAIC_WOZ_data_preprocessing/blob/master/acoustic/COVAREP/training_data/preprocessing.py
     """
-
-    training_set_IDs = [300] 
-    print(f'running process covarep data for {len(training_set_IDs)} train IDs')
-
+    covarep_path = f'{DIR}{ID}_P/{ID}_COVAREP.csv'
+    transcript_path = f'{DIR}{ID}_P/{ID}_TRANSCRIPT.csv'
 
     def preprocess():
-        print(f'preprocessing the data now...')
         max_frames = -1
         min_frames = 1000000000
-
-        for ID in training_set_IDs:
         
-            print(ID, end='\r')
-            # for now we are hard coding the paths, but this can be made modular to handle all paths by doing: 
-            # data/'+str(ID)+'_P/'+str(ID)+'_COVAREP.csv' 
-            # data/'+str(ID)+'_P/'+str(ID)+'_TRANSCRIPT.csv' 
-            data = pd.read_csv('../data/300_P/300_COVAREP.csv', header=None)
-            transcript = pd.read_csv('../data/300_P/300_TRANSCRIPT.csv', sep='\t')
+        print(ID, end='\r')
+        # for now we are hard coding the paths, but this can be made modular to handle all paths by doing: 
+        # data/'+str(ID)+'_P/'+str(ID)+'_COVAREP.csv' 
+        # data/'+str(ID)+'_P/'+str(ID)+'_TRANSCRIPT.csv' 
+        data = pd.read_csv(covarep_path, header=None)
+        transcript = pd.read_csv(transcript_path, sep='\t')
 
-            data = data.values
-            transcript = transcript.values
-                    
-            transcript = transcript[transcript[:,2] == 'Participant']
-            transcript = transcript[:, [0,1]]
-            transcript = (transcript*100 + 0.5).astype(int)
-
-            participant_speech_features = []
-            
-            for i in range(transcript.shape[0]):
+        data = data.values
+        transcript = transcript.values
                 
-                start_range = transcript[i,0]-15
-                end_range = transcript[i,1]+15
-                    
-                #if(end_range - start_range + 1 > 300):
-                participant_speech_features = participant_speech_features + data[start_range: end_range+1].tolist()
+        transcript = transcript[transcript[:,2] == 'Participant']
+        transcript = transcript[:, [0,1]]
+        transcript = (transcript*100 + 0.5).astype(int)
+
+        participant_speech_features = []
+        
+        for i in range(transcript.shape[0]):
             
-            participant_speech_features = np.array(participant_speech_features)
-            participant_speech_features = participant_speech_features[participant_speech_features[:,1] == 1]
+            start_range = transcript[i,0]-15
+            end_range = transcript[i,1]+15
+                
+            #if(end_range - start_range + 1 > 300):
+            participant_speech_features = participant_speech_features + data[start_range: end_range+1].tolist()
+        
+        participant_speech_features = np.array(participant_speech_features)
+        participant_speech_features = participant_speech_features[participant_speech_features[:,1] == 1]
 
-            participant_speech_features[:, 0:1] = preprocessing.scale(participant_speech_features[:, 0:1])
-            participant_speech_features[:, 2:] = preprocessing.scale(participant_speech_features[:, 2:])
+        participant_speech_features[:, 0:1] = preprocessing.scale(participant_speech_features[:, 0:1])
+        participant_speech_features[:, 2:] = preprocessing.scale(participant_speech_features[:, 2:])
 
-            participant_speech_features = np.hstack((participant_speech_features[:, 0:1], participant_speech_features[:, 2:]))
+        participant_speech_features = np.hstack((participant_speech_features[:, 0:1], participant_speech_features[:, 2:]))
 
-            a = np.arange(participant_speech_features.shape[0])
-            participant_speech_features = participant_speech_features[a%4 == 0]
+        a = np.arange(participant_speech_features.shape[0])
+        participant_speech_features = participant_speech_features[a%4 == 0]
 
-            no_of_frames = participant_speech_features.shape[0]
+        no_of_frames = participant_speech_features.shape[0]
 
-            if(max_frames < no_of_frames):
-                max_frames = no_of_frames
+        if(max_frames < no_of_frames):
+            max_frames = no_of_frames
 
-            if(min_frames > no_of_frames):
-                min_frames = no_of_frames
+        if(min_frames > no_of_frames):
+            min_frames = no_of_frames
 
-            # save each processed accoustic modality to a binary file if desired
-            # np.save(f'{outpath}/{ID}_COVAREP.npy', participant_speech_features)
-
-        print(max_frames, min_frames)
-        print(f'participant features are a {type(participant_speech_features)} with shape: {participant_speech_features.shape}')
+        # save each processed accoustic modality to a binary file if desired
+        # np.save(f'{outpath}/{ID}_COVAREP.npy', participant_speech_features)
         return participant_speech_features 
     
     def pad(processed_unpadded_covarep_features):
         X = []
-
-        for ID in training_set_IDs:
-            print(ID, end='\r')
-            # use the location & a setup if to load unpadded but preprocessed data from a file
-            # location = '/data/chercheurs/qureshi191/preprocessed_data/training_data/acoustic/COVAREP/individual/'+str(ID)+'_COVAREP.npy'
-            # a = np.load(location).T
-            X.append(sequence.pad_sequences(processed_unpadded_covarep_features, maxlen=22000, dtype='float32', padding='pre').T.tolist())
+        X.append(sequence.pad_sequences(processed_unpadded_covarep_features, maxlen=22000, dtype='float32', padding='pre').T.tolist())
 
         X = np.array(X)
-        print(f'the type of padded features is {type(X)} with shape {X.shape}')
+        X = np.squeeze(X, axis=0)
         return X
 
     covarep_features = preprocess() # pre process
@@ -341,18 +324,19 @@ def process_covarep_data(inpath, outpath) -> np.ndarray:
     return covarep_features
 
 
-def process_formant_data(inpath, outpath) -> np.ndarray:
+def process_formant_data(DIR, ID) -> np.ndarray:
     """ Processes formant data for a single participant interview 
         Credit to: Arbaaz Qureshi, original implementation available at:
         https://github.com/arbaazQureshi/DAIC_WOZ_data_preprocessing/tree/master
     """
-    print(f'processing formant data...')
+    path = f'{DIR}{ID}_P/{ID}_FORMANT.csv'
+
 
     def preprocess():
         max_frames = -1
         min_frames = 1000000000
         # modify to go through each participant
-        data = pd.read_csv('../data/300_P/300_COVAREP.csv', header=None)
+        data = pd.read_csv(path, header=None)
 
         data = data.values
         a = np.arange(data.shape[0])
@@ -366,20 +350,18 @@ def process_formant_data(inpath, outpath) -> np.ndarray:
         if(min_frames > data.shape[0]):
             min_frames = data.shape[0]
 
-        print(max_frames, min_frames)
         return data    
 
     
-    def pad():
+    def pad(formant_data):
             X = []
-            X.append(sequence.pad_sequences(X, maxlen=20000, dtype='float32', padding='pre').T.tolist())
+            X.append(sequence.pad_sequences(formant_data, maxlen=20000, dtype='float32', padding='pre').T.tolist())
             X = np.array(X)
+            X = np.squeeze(X, axis=0)
             return X
     
     formant_data = preprocess()
-    print(f'after preprocessing, formant data has shape {formant_data.shape}')
-    formant_data = pad()
-    print(f'after padding, formant data has shape: {formant_data.shape}')
+    formant_data = pad(formant_data)
     # np.save(outpath, formant_data) # optionally save the padded data to a file (this will redundantly save a lot of 0s to files -- consider modifying)
     return formant_data
 
@@ -400,8 +382,10 @@ def process_formant_data(inpath, outpath) -> np.ndarray:
              of a sentence. We pad along the time-axis with zeros to achieve uniform shape of 
              (512, 4000)
 """
-def process_transcript(path) -> np.ndarray:
+def process_transcript(DIR, ID) -> np.ndarray:
     print(f'running process_transcript...')
+    path = f'{DIR}{ID}_P/{ID}_TRANSCRIPT.csv'
+
     embeddings = np.zeros((512, 400))
     with open(path, 'r') as f:
         utterances = []
@@ -535,19 +519,74 @@ def remove_informalisms(text: str) -> str:
     return text
 
 
-def main():
-    """ Process training, validation, and test data, saving the processed data to binary files
+
+""" This part of the file gets the participant IDs and handles controller logic like preprocessing each of the files
+"""
+def get_train_dev_test_IDs():
+    """ This removes incomplete data from the train, dev, test split
+        IDs are used in pre-processing to systematically access the raw data paths based on participant ID
+        The DAIC-WOZ documentation indices that the IDs in `incomplete_data_ID_list` are faulty and contain 
+        incomplete data, so we omit them from the dataset we will use to train the model
     """
+    train_set_ID_list = [303, 304, 305, 310, 312, 313, 315, 316, 317, 318, 319, 320, 321, 322, 324, 325, 326, 327, 328, 330, 333, 336, 338, 339, 340, 341, 343, 344, 345, 347, 348, 350, 351, 352, 353, 355, 356, 357, 358, 360, 362, 363, 364, 366, 368, 369, 370, 371, 372, 374, 375, 376, 379, 380, 383, 385, 386, 391, 392, 393, 397, 400, 401, 409, 412, 414, 415, 416, 419, 423, 425, 426, 427, 428, 429, 430, 433, 434, 437, 441, 443, 445, 446, 447, 448, 449, 454, 455, 456, 457, 459, 463, 464, 468, 471, 473, 474, 475, 478, 479, 485, 486, 487, 488, 491]
+    dev_set_ID_list = [302, 307, 331, 335, 346, 367, 377, 381, 382, 388, 389, 390, 395, 403, 404, 406, 413, 417, 418, 420, 422, 436, 439, 440, 451, 458, 472, 476, 477, 482, 483, 484, 489, 490, 492]
+    test_set_ID_list = [300, 301, 306, 308, 309, 311, 314, 323, 329, 332, 334, 337, 349, 354, 359, 361, 365, 378, 384, 387, 396, 399, 405, 407, 408, 410, 411, 421, 424, 431, 432, 435, 438, 442, 450, 452, 453, 461, 462, 465, 466, 467, 469, 470, 481]
+    incomplete_data_ID_list = [342, 394, 398, 460, 373, 444, 451, 458, 480, 402]
+
+    def prune(IDs_list, faulty_IDs_list):
+        for ID in faulty_IDs_list:
+            if ID in IDs_list:
+                IDs_list.remove(ID)
+        return IDs_list
+    
+    # train_set_ID_list = prune(train_set_ID_list, incomplete_data_ID_list)
+    # dev_set_ID_list = prune(dev_set_ID_list,     incomplete_data_ID_list)
+    # test_set_ID_list = prune(test_set_ID_list,   incomplete_data_ID_list)
+    train_set_ID_list = [300] # testing with a single participant with working data
+    return train_set_ID_list, dev_set_ID_list, test_set_ID_list
+
+
+def main():
+    """ Process data, save the output to files
+        Each function requires 2 inputs: 
+        `dir` the directory prefix where participant data is stored (e.g. '../data/)
+        `ID` the ID of the particpant that is currently being processed
+    """
+    dir = '../data/'
+    train_set_IDs, dev_set_IDs, test_set_IDs = get_train_dev_test_IDs()
+
     # process training data
+    print(f'processing training data')
+    for idx, ID in enumerate(train_set_IDs):
+        print(f'processing ID {ID} in training data')
+        
+        if idx == 1:
+            break
+        landmarks = process_3D_landmarks(dir, ID)
+        print(f'   successfully processed 3D landmarks with output shape: {landmarks.shape}')
+        head_pose_data = process_headpose_data(dir, ID)
+        print(f'   successfully processed headpose data with output shape: {head_pose_data.shape}')
+        covarep_data = process_covarep_data(dir, ID)
+        print(f'   successfully processed covarep data with output shape: {covarep_data.shape}')
+        formant_data = process_formant_data(dir, ID)
+        print(f'   successfully processed formant data with output shape: {formant_data.shape}')
+        transcript_data = process_transcript(dir, ID)
+
+        total_size = (landmarks.nbytes + head_pose_data.nbytes + covarep_data.nbytes + formant_data.nbytes) / (1024 **2 )
+        print(f'successfully pre processed all modalities for participant with ID {ID}, containing {round(total_size, 4)} MB')
+
+
 
 
     # process development (validation) data
-
+    
 
     # process test data
 
 
 
+if __name__ == "__main__":
+    main()
 
 
 # process_headpose_data( "../data/300_P/300_CLNF_pose.txt")
