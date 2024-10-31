@@ -20,7 +20,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'  # this removes warnings about rebuildi
     Note that no pre-processing is necessary for the eye-gaze data or facial action
     units, as they are already normalized in the dataset.
 """
-def process_3D_landmarks(DIR, ID) -> np.ndarray:
+def process_3D_landmarks(in_dir, out_dir, ID) -> np.ndarray:
     """ Reads in the 3D facial landmark data line by line, applying preprocessing steps outlined in research
         paper 
         Returns: np array of facial landmark data of shape (2482, num_frames), where the first dimension is 
@@ -28,21 +28,22 @@ def process_3D_landmarks(DIR, ID) -> np.ndarray:
         between each pair of landmarks (which have been processed according to the paper)
         Average runtime on Mac OS (Intel Processor) is ~25-30 seconds
     """
-    path = f'{DIR}{ID}_P/{ID}_CLNF_features3D.txt'
+
+    in_path = f'{in_dir}{ID}_P/{ID}_CLNF_features3D.txt' # e.g. ../data/raw_data/300_P/300_CLNF_features3D.txt
+    out_path = f'{out_dir}/3DLandmarks/{ID}.npy' # e.g. ../data/processed_data/train/3DLandmarks/300.npy
 
     np.set_printoptions(precision=3, suppress=True)
-    max_i = 0
 
     landmarks = np.zeros((2482, 10000))
     time_idx = 0 # represents the location in the head_pose array after scaling from 30 Hz -> 5 Hz
     unsuccessful_frames = {}
-    with open(path, 'r') as f:
+    with open(in_path, 'r') as f:
         for i, line in enumerate(f):
             max_i = i
             if (i-1) % 6 != 0 or i == 0: # only include every 1 in 6 frames to reduce from 30 Hz to 5 Hz
                 continue
             data = line.strip('\n').split(', ')
-            if time_idx % 500 == 0:
+            if time_idx % 1000 == 0:
                 print(f'   processing {time_idx:,}th frame in the landmarks array')
 
             success = int(data[3]) 
@@ -55,6 +56,11 @@ def process_3D_landmarks(DIR, ID) -> np.ndarray:
             landmarks[:, time_idx] = process_single_landmark(frame, i-1)
             time_idx += 1
     landmarks = landmarks[:, :time_idx] # crop landmarks to remove zero-padding
+
+    print(f'saving 3D facial landmarks with padding ({round(landmarks.nbytes / (1024 **2), 3)} Mb) for participant {ID} to {out_path}')
+    if not os.path.exists(f'{out_dir}/3DLandmarks'):
+        os.mkdir(f'{out_dir}/3DLandmarks')
+    np.save(out_path, landmarks) 
 
     return landmarks
 
@@ -137,7 +143,7 @@ def process_headpose_data(DIR, ID) -> np.ndarray:
     # Normalize Tx Ty Tz by diving by 100
     head_pose[0,:,:] /= 100
     # print(f'there were {len(unsuccessful_frames)} unsuccessful frames occuring at the following frames: \n{list(unsuccessful_frames.keys())}')
-    # print(f'head_pose was cvted from {max_i} to {time_idx} frames')
+    # print(f'head_pose was cvted from {5} to {time_idx} frames')
     end_time = int(time.time())
     # print(f'processed headpose data in {(end_time - start_time) // 60}m {round((time.time() - start_time) % 60, 2)}s')
     return head_pose
@@ -525,11 +531,28 @@ def get_train_dev_test_IDs():
                 IDs_list.remove(ID)
         return IDs_list
     
-    # train_set_ID_list = prune(train_set_ID_list, incomplete_data_ID_list)
-    # dev_set_ID_list = prune(dev_set_ID_list,     incomplete_data_ID_list)
-    # test_set_ID_list = prune(test_set_ID_list,   incomplete_data_ID_list)
-    train_set_ID_list = [300] # testing with a single participant with working data
+    train_set_ID_list = prune(train_set_ID_list, incomplete_data_ID_list)
+    dev_set_ID_list = prune(dev_set_ID_list,     incomplete_data_ID_list)
+    test_set_ID_list = prune(test_set_ID_list,   incomplete_data_ID_list)
     return train_set_ID_list, dev_set_ID_list, test_set_ID_list
+
+def process_data(in_dir, out_dir, set_type, IDs_list):
+    """ Processes data for all participants for a single set of data (e.g. for the train, test, or dev set)
+    """
+    IDs_list = [300] # testing with a single participant with working data # TODO: remove this
+
+    for idx, ID in enumerate(IDs_list):
+        print(f'processing ID {ID} in {set_type} data out of {len(IDs_list)} {set_type} IDs')
+        out_dir = f'{out_dir}/{set_type}' # e.g. processed_data/train or processed_data/test
+        landmarks = process_3D_landmarks(in_dir, out_dir, ID)
+        # head_pose_data = process_headpose_data(in_dir, ID)
+        # covarep_data = process_covarep_data(in_dir, ID)
+        # formant_data = process_formant_data(in_dir, ID)
+        # transcript_data = process_transcript(in_dir, ID)
+
+        # total_size = (landmarks.nbytes + head_pose_data.nbytes + covarep_data.nbytes + formant_data.nbytes) / (1024 **2 )
+        # print(f'successfully pre processed all modalities for participant with ID {ID}, containing {round(total_size, 4)} MB')
+
 
 
 def main():
@@ -538,29 +561,15 @@ def main():
         `dir` the directory prefix where participant data is stored (e.g. '../data/)
         `ID` the ID of the particpant that is currently being processed
     """
-    dir = '../data/'
     train_set_IDs, dev_set_IDs, test_set_IDs = get_train_dev_test_IDs()
+    print(f'processing training data...')
+    process_data(in_dir='../data/raw_data/', out_dir='../data/processed_data', set_type='train', IDs_list=train_set_IDs)
+    print(f'finished processing training data')
+
+    # process_data(in_dir='../data/raw_data/', out_dir='../data/processed_data', set_type='dev', IDs_list=dev_set_IDs)
+    # print(f'finished processing development/validation data')
 
     # process training data
-    print(f'processing training data')
-    for idx, ID in enumerate(train_set_IDs):
-        print(f'processing ID {ID} in training data')
-        
-        if idx == 1:
-            break
-        landmarks = process_3D_landmarks(dir, ID)
-        print(f'   successfully processed 3D landmarks with output shape: {landmarks.shape}')
-        head_pose_data = process_headpose_data(dir, ID)
-        print(f'   successfully processed headpose data with output shape: {head_pose_data.shape}')
-        covarep_data = process_covarep_data(dir, ID)
-        print(f'   successfully processed covarep data with output shape: {covarep_data.shape}')
-        formant_data = process_formant_data(dir, ID)
-        print(f'   successfully processed formant data with output shape: {formant_data.shape}')
-        transcript_data = process_transcript(dir, ID)
-        print(f'   successfully processed formant data with output shape: {transcript_data.shape}')
-
-        total_size = (landmarks.nbytes + head_pose_data.nbytes + covarep_data.nbytes + formant_data.nbytes) / (1024 **2 )
-        print(f'successfully pre processed all modalities for participant with ID {ID}, containing {round(total_size, 4)} MB')
 
 
     # process development (validation) data
@@ -571,6 +580,7 @@ def main():
 
 
 if __name__ == "__main__":
+    print(f'running main() function')
     main()
 
 
