@@ -58,8 +58,8 @@ def process_3D_landmarks(in_dir, out_dir, ID) -> np.ndarray:
     landmarks = landmarks[:, :time_idx] # crop landmarks to remove zero-padding
 
     print(f'saving 3D facial landmarks with padding ({round(landmarks.nbytes / (1024 **2), 3)} Mb) for participant {ID} to {out_path}')
-    if not os.path.exists(f'{out_dir}/3DLandmarks'):
-        os.mkdir(f'{out_dir}/3DLandmarks')
+    # if not os.path.exists(f'{out_dir}/3DLandmarks'):
+    #     os.mkdir(f'{out_dir}/3DLandmarks')
     np.save(out_path, landmarks) 
 
     return landmarks
@@ -554,6 +554,37 @@ def process_data(in_dir, out_dir, set_type, IDs_list):
         # print(f'successfully pre processed all modalities for participant with ID {ID}, containing {round(total_size, 4)} MB')
 
 
+def init_directories():
+    """ For easy set up / system portability, we initialize the processed data directories where the data pre-processing 
+        functions will save data binaries of the processed, padded data. 
+        In each folder (e.g. ../data/processed_data/train/3DLandmarks), there will be a list of files titled ID.npy 
+        which represents the processed + padded data for the user with that ID
+    """
+    prefix = '../data/processed_data'
+    paths = [
+        prefix,
+        f'{prefix}/train/3DLandmarks',
+        f'{prefix}/train/headpose'
+        f'{prefix}/train/covarep'
+        f'{prefix}/train/formant'
+        f'{prefix}/train/transcript'
+        f'{prefix}/dev/3DLandmarks',
+        f'{prefix}/dev/headpose'
+        f'{prefix}/dev/covarep'
+        f'{prefix}/dev/formant'
+        f'{prefix}/dev/transcript'
+        f'{prefix}/test/3DLandmarks',
+        f'{prefix}/test/headpose'
+        f'{prefix}/test/covarep'
+        f'{prefix}/test/formant'
+        f'{prefix}/test/transcript'
+    ]
+
+    for path in paths:
+        if not os.path.exists(path):
+            os.makdir(path)
+        else:
+            print(f'in initializing directories, {path} already exists')
 
 def main():
     """ Process data, save the output to files
@@ -561,6 +592,7 @@ def main():
         `dir` the directory prefix where participant data is stored (e.g. '../data/)
         `ID` the ID of the particpant that is currently being processed
     """
+
     train_set_IDs, dev_set_IDs, test_set_IDs = get_train_dev_test_IDs()
     print(f'processing training data...')
     process_data(in_dir='../data/raw_data/', out_dir='../data/processed_data', set_type='train', IDs_list=train_set_IDs)
