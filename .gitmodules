@@ -1,0 +1,6 @@
+[submodule "multitask_learning_on_depression_and_emotion"]
+	path = multitask_learning_on_depression_and_emotion
+	url = https://github.com/arbaazQureshi/multitask_learning_on_depression_and_emotion.git
+[submodule "DAIC_WOZ_data_preprocessing"]
+	path = DAIC_WOZ_data_preprocessing
+	url = https://github.com/arbaazQureshi/DAIC_WOZ_data_preprocessing.git

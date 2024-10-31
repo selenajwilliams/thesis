@@ -61,16 +61,20 @@ def download_data(download_dir):
 
 import zipfile
 import shutil
-def unzip_files(dir):
+def unzip_files(dir_prefix):
     failed_zips = []
     failed_moves = []
     # create a folder to move the .zip files into after extracting them
-    zip_folder = f'{dir}zips'
+
+    zip_folder = f'{dir_prefix}zips'
+    print(f'zip folder exists at path: {zip_folder}')
     if not os.path.exists(zip_folder):
         os.makedirs(zip_folder)
     
     i = 0
-    for zip_file in os.listdir(dir):
+    print(f'files at this directory:')
+    [print(x) for x in os.listdir(dir_prefix)]
+    for zip_file in os.listdir(dir_prefix):
         if i == 500:
             break
         if 'zip' not in zip_file:
@@ -80,12 +84,15 @@ def unzip_files(dir):
         
         # create a folder contianing the filepath if it doesn't exist
         file_name = os.path.splitext(zip_file)[0] # removes file extension (e.g. .zip, .pdf, etc)
-        new_folder = f'{dir}{file_name}'
+        new_folder = f'{dir_prefix}{file_name}'
+
         if not os.path.exists(new_folder):
+            print(f'creating folder: {new_folder}')
             os.makedirs(new_folder)
         
-        current_zip_path = f'{dir}{zip_file}'
+        current_zip_path = f'{dir_prefix}{zip_file}'
         
+        # extract all zip files into the new folder
         try:
             print(f'unzipping {current_zip_path}') 
             with zipfile.ZipFile(current_zip_path, 'r') as zip_ref:
@@ -93,14 +100,17 @@ def unzip_files(dir):
         except Exception as e:
             print(f'error encountered when unzipping file, skipping to next file')
             failed_zips.append(zip_file)
-            continue # if an error is encountered, don't move the broken zip file into the zips directory
-
+            delete_zip_file(current_zip_path)
+            continue 
+        
+        # move the zip file into 
         try:
-            print(f'moving {zip_file} to {zip_folder}')
+            print(f'moving {zip_file} to {os.path.join(zip_folder)}')
             shutil.move(current_zip_path, os.path.join(zip_folder))
         except Exception as e:
             print(f'error encoutnered when moving file, skipping to next file')
             failed_moves.append(zip_file)
+            delete_zip_file(current_zip_path)
             continue
 
         i += 1
@@ -108,15 +118,28 @@ def unzip_files(dir):
     print(f'failed to unzip {len(failed_zips)} files. The failed zips include: {failed_zips}')
     print(f'failed to move {len(failed_moves)} files. The failed moves include: {failed_moves}')
 
+    if len(failed_zips) == 0 and len(failed_moves) == 0:
+        return True
+    else:
+        return False
 
+def delete_zip_file(path):
+    try:
+        os.remove(path)  
+        print(f'Deleted failed zip file: {path}')
+    except Exception as delete_error:
+        print(f'Error deleting file: {path}, error: {delete_error}')
 
     
 
 
-
 print(f'Running download-data.py...')
 download_dir = '../data'
-download_data(download_dir=download_dir)
+# download_data(download_dir=download_dir) # download all data
 
 test_dir = '../data_backup/'
+res = unzip_files(test_dir) # unzip all files, deleting broken zip files (e.g. where not all chunks were downloaded)
+
+
+# download_data(download_dir) # for any files that failed, 
 # unzip_files(test_dir)

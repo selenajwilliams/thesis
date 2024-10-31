@@ -28,14 +28,11 @@ def process_3D_landmarks(DIR, ID) -> np.ndarray:
         between each pair of landmarks (which have been processed according to the paper)
         Average runtime on Mac OS (Intel Processor) is ~25-30 seconds
     """
-    print(f'in utils, processing 3D facial landmark data...')
     path = f'{DIR}{ID}_P/{ID}_CLNF_features3D.txt'
 
-    start_time = int(time.time())
     np.set_printoptions(precision=3, suppress=True)
     max_i = 0
 
-    ## read in landmark data
     landmarks = np.zeros((2482, 10000))
     time_idx = 0 # represents the location in the head_pose array after scaling from 30 Hz -> 5 Hz
     unsuccessful_frames = {}
@@ -47,7 +44,7 @@ def process_3D_landmarks(DIR, ID) -> np.ndarray:
             data = line.strip('\n').split(', ')
             if time_idx % 500 == 0:
                 print(f'   processing {time_idx:,}th frame in the landmarks array')
-            # skip any frames that were unsucessful in capturing  data
+
             success = int(data[3]) 
             if not success:
                 unsuccessful_frames[i-1] = data
@@ -57,15 +54,8 @@ def process_3D_landmarks(DIR, ID) -> np.ndarray:
             frame = np.array(data).reshape(68, 3) 
             landmarks[:, time_idx] = process_single_landmark(frame, i-1)
             time_idx += 1
-    # crop landmarks to remove zero-padding
-    landmarks = landmarks[:, :time_idx]
+    landmarks = landmarks[:, :time_idx] # crop landmarks to remove zero-padding
 
-    # helpful print statements
-    # print(f'there were {len(unsuccessful_frames)} unsuccessful frames occuring at the following frames: \n{list(unsuccessful_frames.keys())}')
-    # print(f'There were {len(unsuccessful_frames)} unsuccessful frames ({round(100 * len(unsuccessful_frames) / landmarks.shape[1], 3)}%) when processing the facial landmarks')
-    # print(f'Landmarks was cvted from {max_i} to {time_idx} frames')
-    end_time = int(time.time())
-    print(f'finished processing all {time_idx:,} landmark frames in {(end_time - start_time) // 60}m {round((time.time() - start_time) % 60, 2)}s')
     return landmarks
 
 def process_single_landmark(face: np.ndarray, frame: int) -> np.ndarray:
@@ -122,7 +112,6 @@ def process_headpose_data(DIR, ID) -> np.ndarray:
     Also note that this code processes the frames to modify indexing from 1 indexing to 0 indexing, 
     which leads to a mismatch in the source data (since the source data is never modified)
     """
-    print(f'processing headpose data...')
     path = f'{DIR}{ID}_P/{ID}_CLNF_pose.txt'
     start_time = int(time.time())
     np.set_printoptions(precision=3, suppress=True)
@@ -150,7 +139,7 @@ def process_headpose_data(DIR, ID) -> np.ndarray:
     # print(f'there were {len(unsuccessful_frames)} unsuccessful frames occuring at the following frames: \n{list(unsuccessful_frames.keys())}')
     # print(f'head_pose was cvted from {max_i} to {time_idx} frames')
     end_time = int(time.time())
-    print(f'processed headpose data in {(end_time - start_time) // 60}m {round((time.time() - start_time) % 60, 2)}s')
+    # print(f'processed headpose data in {(end_time - start_time) // 60}m {round((time.time() - start_time) % 60, 2)}s')
     return head_pose
 
 def test_process_single_landmark():
@@ -383,7 +372,6 @@ def process_formant_data(DIR, ID) -> np.ndarray:
              (512, 4000)
 """
 def process_transcript(DIR, ID) -> np.ndarray:
-    print(f'running process_transcript...')
     path = f'{DIR}{ID}_P/{ID}_TRANSCRIPT.csv'
 
     embeddings = np.zeros((512, 400))
@@ -413,14 +401,12 @@ def process_transcript(DIR, ID) -> np.ndarray:
                     curr_text = remove_informalisms(curr_text)
                     utterances.append(curr_text)
                 current_start, current_end, curr_text = 0, 0, ""
-        # print(f'total text:')
-        # [print(i) for i in utterances]
-        print(f'   computing sentence embeddings for {len(utterances)} utternaces')
+
         embeddings[:,:len(utterances)] = get_sentence_embedding(utterances)
         
         timer_end = time.time()
         # runs in approximately 0.004s 
-        print(f'processed transcript with {max_i} lines and {len(utterances)} utterances into an {embeddings.shape} embeddings array in {int((timer_end - timer_start) // 60)}m {round((timer_end - timer_start) % 60, 3)}s')
+        # print(f'processed transcript with {max_i} lines and {len(utterances)} utterances into an {embeddings.shape} embeddings array in {int((timer_end - timer_start) // 60)}m {round((timer_end - timer_start) % 60, 3)}s')
         return embeddings
 
 """ Given a list of utterances, returns an embedding of all the utterances
@@ -571,11 +557,10 @@ def main():
         formant_data = process_formant_data(dir, ID)
         print(f'   successfully processed formant data with output shape: {formant_data.shape}')
         transcript_data = process_transcript(dir, ID)
+        print(f'   successfully processed formant data with output shape: {transcript_data.shape}')
 
         total_size = (landmarks.nbytes + head_pose_data.nbytes + covarep_data.nbytes + formant_data.nbytes) / (1024 **2 )
         print(f'successfully pre processed all modalities for participant with ID {ID}, containing {round(total_size, 4)} MB')
-
-
 
 
     # process development (validation) data
