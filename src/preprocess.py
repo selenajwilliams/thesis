@@ -12,6 +12,8 @@ import os
 import pandas as pd
 from sklearn import preprocessing
 from keras.preprocessing import sequence
+np.set_printoptions(precision=3, suppress=True)
+
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'  # this removes warnings about rebuilding tensorflow with compiler flags. If TF is being too slow, comment this out and follow instructions from warning to improve runtime
 
@@ -31,8 +33,6 @@ def process_3D_landmarks(in_dir, out_dir, ID) -> np.ndarray:
 
     in_path = f'{in_dir}{ID}_P/{ID}_CLNF_features3D.txt' # e.g. ../data/raw_data/300_P/300_CLNF_features3D.txt
     out_path = f'{out_dir}/3DLandmarks/{ID}.npy' # e.g. ../data/processed_data/train/3DLandmarks/300.npy
-
-    np.set_printoptions(precision=3, suppress=True)
 
     landmarks = np.zeros((2482, 10000))
     time_idx = 0 # represents the location in the head_pose array after scaling from 30 Hz -> 5 Hz
@@ -58,8 +58,6 @@ def process_3D_landmarks(in_dir, out_dir, ID) -> np.ndarray:
     landmarks = landmarks[:, :time_idx] # crop landmarks to remove zero-padding
 
     print(f'saving 3D facial landmarks with padding ({round(landmarks.nbytes / (1024 **2), 3)} Mb) for participant {ID} to {out_path}')
-    # if not os.path.exists(f'{out_dir}/3DLandmarks'):
-    #     os.mkdir(f'{out_dir}/3DLandmarks')
     np.save(out_path, landmarks) 
 
     return landmarks
@@ -104,7 +102,7 @@ def process_single_landmark(face: np.ndarray, frame: int) -> np.ndarray:
     final_vector = np.concatenate((face, pair_distances))
     return final_vector
 
-def process_headpose_data(DIR, ID) -> np.ndarray:
+def process_headpose_data(in_dir, out_dir, ID) -> np.ndarray:
     """
     Reads in head pose data line by line, applying scaling normalization (diving by 100 for Tx Ty Tz) and
     time series normalzation (going from 30 Hz (fps) to 5 Hz)
@@ -118,14 +116,15 @@ def process_headpose_data(DIR, ID) -> np.ndarray:
     Also note that this code processes the frames to modify indexing from 1 indexing to 0 indexing, 
     which leads to a mismatch in the source data (since the source data is never modified)
     """
-    path = f'{DIR}{ID}_P/{ID}_CLNF_pose.txt'
+    in_path = f'{in_dir}{ID}_P/{ID}_CLNF_pose.txt'
+    out_path = f'{out_dir}/headpose/{ID}.npy' # e.g. ../data/processed_data/train/headpose/300.npy
+
     start_time = int(time.time())
-    np.set_printoptions(precision=3, suppress=True)
     head_pose = np.zeros((2, 3, 10000))
     time_idx = 0 # represents the location in the head_pose array after scaling from 30 Hz -> 5 Hz
     unsuccessful_frames = {}
 
-    with open(path, 'r') as f:
+    with open(in_path, 'r') as f:
         for i, line in enumerate(f):
             if (i-1) % 6 != 0 or i == 0: # only include every 1 in 6 frames to reduce from 30 Hz to 5 Hz
                 continue 
@@ -146,6 +145,9 @@ def process_headpose_data(DIR, ID) -> np.ndarray:
     # print(f'head_pose was cvted from {5} to {time_idx} frames')
     end_time = int(time.time())
     # print(f'processed headpose data in {(end_time - start_time) // 60}m {round((time.time() - start_time) % 60, 2)}s')
+    print(f'saving headpose data with padding ({round(head_pose.nbytes / (1024 **2), 3)} Mb) for participant {ID} to {out_path}')
+    np.save(out_path, head_pose)
+
     return head_pose
 
 def test_process_single_landmark():
@@ -245,14 +247,15 @@ def test_process_single_landmark():
 """ This part of the file pre-processes audio data
 """
 
-def process_covarep_data(DIR, ID) -> np.ndarray:
+def process_covarep_data(in_dir, out_dir, ID) -> np.ndarray:
     """ This functionality is adapted from Arbaaz Qureshi, author of Gender-Aware 
         Estimation of Depression Severity Level in a Multimodal Setting, from
         this github repo: 
         https://github.com/arbaazQureshi/DAIC_WOZ_data_preprocessing/blob/master/acoustic/COVAREP/training_data/preprocessing.py
     """
-    covarep_path = f'{DIR}{ID}_P/{ID}_COVAREP.csv'
-    transcript_path = f'{DIR}{ID}_P/{ID}_TRANSCRIPT.csv'
+    covarep_path = f'{in_dir}{ID}_P/{ID}_COVAREP.csv'
+    transcript_path = f'{in_dir}{ID}_P/{ID}_TRANSCRIPT.csv'
+    out_path = f'{out_dir}/covarep/{ID}.npy' # e.g. ../data/processed_data/train/covarep/300.npy
 
     def preprocess():
         max_frames = -1
@@ -316,22 +319,26 @@ def process_covarep_data(DIR, ID) -> np.ndarray:
     covarep_features = preprocess() # pre process
     covarep_features = pad(covarep_features) # add padding
 
+    # save the final processed + padded covarep features
+    print(f'saving coavarep features with padding ({round(covarep_features.nbytes / (1024 **2), 3)} Mb) for participant {ID} to {out_path}')
+    np.save(out_path, covarep_features)
+
     return covarep_features
 
 
-def process_formant_data(DIR, ID) -> np.ndarray:
+def process_formant_data(in_dir, out_dir, ID) -> np.ndarray:
     """ Processes formant data for a single participant interview 
         Credit to: Arbaaz Qureshi, original implementation available at:
         https://github.com/arbaazQureshi/DAIC_WOZ_data_preprocessing/tree/master
     """
-    path = f'{DIR}{ID}_P/{ID}_FORMANT.csv'
-
+    in_path = f'{in_dir}{ID}_P/{ID}_FORMANT.csv'
+    out_path = f'{out_dir}/formant/{ID}.npy' # e.g. ../data/processed_data/train/formant/300.npy
 
     def preprocess():
         max_frames = -1
         min_frames = 1000000000
         # modify to go through each participant
-        data = pd.read_csv(path, header=None)
+        data = pd.read_csv(in_path, header=None)
 
         data = data.values
         a = np.arange(data.shape[0])
@@ -347,7 +354,6 @@ def process_formant_data(DIR, ID) -> np.ndarray:
 
         return data    
 
-    
     def pad(formant_data):
             X = []
             X.append(sequence.pad_sequences(formant_data, maxlen=20000, dtype='float32', padding='pre').T.tolist())
@@ -357,7 +363,9 @@ def process_formant_data(DIR, ID) -> np.ndarray:
     
     formant_data = preprocess()
     formant_data = pad(formant_data)
-    # np.save(outpath, formant_data) # optionally save the padded data to a file (this will redundantly save a lot of 0s to files -- consider modifying)
+
+    print(f'saving formant data with padding ({round(formant_data.nbytes / (1024 **2), 3)} Mb) for participant {ID} to {out_path}')
+    np.save(out_path, formant_data) 
     return formant_data
 
 
@@ -377,8 +385,9 @@ def process_formant_data(DIR, ID) -> np.ndarray:
              of a sentence. We pad along the time-axis with zeros to achieve uniform shape of 
              (512, 4000)
 """
-def process_transcript(DIR, ID) -> np.ndarray:
-    path = f'{DIR}{ID}_P/{ID}_TRANSCRIPT.csv'
+def process_transcript(in_dir, out_dir, ID) -> np.ndarray:
+    path = f'{in_dir}{ID}_P/{ID}_TRANSCRIPT.csv'
+    out_path = f'{out_dir}/transcript/{ID}.npy' # e.g. ../data/processed_data/train/formant/300.npy
 
     embeddings = np.zeros((512, 400))
     with open(path, 'r') as f:
@@ -413,6 +422,8 @@ def process_transcript(DIR, ID) -> np.ndarray:
         timer_end = time.time()
         # runs in approximately 0.004s 
         # print(f'processed transcript with {max_i} lines and {len(utterances)} utterances into an {embeddings.shape} embeddings array in {int((timer_end - timer_start) // 60)}m {round((timer_end - timer_start) % 60, 3)}s')
+        print(f'saving transcript embeddings with padding ({round(embeddings.nbytes / (1024 **2), 3)} Mb) for participant {ID} to {out_path}')
+        np.save(out_path, embeddings)
         return embeddings
 
 """ Given a list of utterances, returns an embedding of all the utterances
@@ -545,16 +556,16 @@ def process_data(in_dir, out_dir, set_type, IDs_list):
         print(f'processing ID {ID} in {set_type} data out of {len(IDs_list)} {set_type} IDs')
         out_dir = f'{out_dir}/{set_type}' # e.g. processed_data/train or processed_data/test
         landmarks = process_3D_landmarks(in_dir, out_dir, ID)
-        # head_pose_data = process_headpose_data(in_dir, ID)
-        # covarep_data = process_covarep_data(in_dir, ID)
-        # formant_data = process_formant_data(in_dir, ID)
-        # transcript_data = process_transcript(in_dir, ID)
+        head_pose_data = process_headpose_data(in_dir, out_dir, ID)
+        covarep_data = process_covarep_data(in_dir, out_dir, ID)
+        formant_data = process_formant_data(in_dir, out_dir, ID)
+        transcript_data = process_transcript(in_dir, out_dir, ID)
 
-        # total_size = (landmarks.nbytes + head_pose_data.nbytes + covarep_data.nbytes + formant_data.nbytes) / (1024 **2 )
-        # print(f'successfully pre processed all modalities for participant with ID {ID}, containing {round(total_size, 4)} MB')
+        total_size = (landmarks.nbytes + head_pose_data.nbytes + covarep_data.nbytes + formant_data.nbytes) / (1024 **2 )
+        print(f'successfully pre processed all modalities for participant with ID {ID}, containing {round(total_size, 4)} MB')
 
 
-def init_directories():
+def init_directories(verbose = False):
     """ For easy set up / system portability, we initialize the processed data directories where the data pre-processing 
         functions will save data binaries of the processed, padded data. 
         In each folder (e.g. ../data/processed_data/train/3DLandmarks), there will be a list of files titled ID.npy 
@@ -563,28 +574,32 @@ def init_directories():
     prefix = '../data/processed_data'
     paths = [
         prefix,
+        f'{prefix}/train',
+        f'{prefix}/dev',
+        f'{prefix}/test',
         f'{prefix}/train/3DLandmarks',
-        f'{prefix}/train/headpose'
-        f'{prefix}/train/covarep'
-        f'{prefix}/train/formant'
-        f'{prefix}/train/transcript'
+        f'{prefix}/train/headpose',
+        f'{prefix}/train/covarep',
+        f'{prefix}/train/formant',
+        f'{prefix}/train/transcript',
         f'{prefix}/dev/3DLandmarks',
-        f'{prefix}/dev/headpose'
-        f'{prefix}/dev/covarep'
-        f'{prefix}/dev/formant'
-        f'{prefix}/dev/transcript'
+        f'{prefix}/dev/headpose',
+        f'{prefix}/dev/covarep',
+        f'{prefix}/dev/formant',
+        f'{prefix}/dev/transcript',
         f'{prefix}/test/3DLandmarks',
-        f'{prefix}/test/headpose'
-        f'{prefix}/test/covarep'
-        f'{prefix}/test/formant'
-        f'{prefix}/test/transcript'
+        f'{prefix}/test/headpose',
+        f'{prefix}/test/covarep',
+        f'{prefix}/test/formant',
+        f'{prefix}/test/transcript',
     ]
 
     for path in paths:
         if not os.path.exists(path):
-            os.makdir(path)
+            os.mkdir(path)
         else:
-            print(f'in initializing directories, {path} already exists')
+            if verbose:
+                print(f'{path} already exists')
 
 def main():
     """ Process data, save the output to files
@@ -592,7 +607,7 @@ def main():
         `dir` the directory prefix where participant data is stored (e.g. '../data/)
         `ID` the ID of the particpant that is currently being processed
     """
-
+    init_directories()
     train_set_IDs, dev_set_IDs, test_set_IDs = get_train_dev_test_IDs()
     print(f'processing training data...')
     process_data(in_dir='../data/raw_data/', out_dir='../data/processed_data', set_type='train', IDs_list=train_set_IDs)
