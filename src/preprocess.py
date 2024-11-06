@@ -565,13 +565,16 @@ def process_data(in_dir, out_dir, set_type, IDs_list):
         print(f'successfully pre processed all modalities for participant with ID {ID}, containing {round(total_size, 4)} MB')
 
 
-def init_directories(verbose = False):
+def init_directories(home_path, verbose = False):
     """ For easy set up / system portability, we initialize the processed data directories where the data pre-processing 
         functions will save data binaries of the processed, padded data. 
         In each folder (e.g. ../data/processed_data/train/3DLandmarks), there will be a list of files titled ID.npy 
         which represents the processed + padded data for the user with that ID
+        `params`:
+            home_path: the root or relative path wheree a processed_data folder will be created with all necessary 
+            sub folders 
     """
-    prefix = '../data/processed_data'
+    prefix = f'{home_path}/processed_data'
     paths = [
         prefix,
         f'{prefix}/train',
@@ -607,11 +610,11 @@ def main():
         `dir` the directory prefix where participant data is stored (e.g. '../data/)
         `ID` the ID of the particpant that is currently being processed
     """
-    init_directories()
+    init_directories(home_path="/users/swilli43/scratch")
     train_set_IDs, dev_set_IDs, test_set_IDs = get_train_dev_test_IDs()
-    print(f'processing training data...')
-    process_data(in_dir='../data/raw_data/', out_dir='../data/processed_data', set_type='train', IDs_list=train_set_IDs)
-    print(f'finished processing training data')
+    # print(f'processing training data...')
+    # process_data(in_dir='../data/raw_data/', out_dir='../data/processed_data', set_type='train', IDs_list=train_set_IDs)
+    # print(f'finished processing training data')
 
     # process_data(in_dir='../data/raw_data/', out_dir='../data/processed_data', set_type='dev', IDs_list=dev_set_IDs)
     # print(f'finished processing development/validation data')
